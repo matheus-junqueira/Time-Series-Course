@@ -1,0 +1,380 @@
+#########################################################################################################
+# Problem Set 1
+# Course: Econometrics 2
+# Question 1
+# Goal: Our goal is to forecast Brazilian Annual GDP Growth between 2021 and 2030
+#########################################################################################################
+# Organize the working enviroment
+#########################################################################################################
+# Cleaning the working environment
+#########################################################################################################
+
+rm(list = ls())
+
+#########################################################################################################
+## Load the required packages
+#########################################################################################################
+
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if (!require(quantmod)) {
+  install.packages("quantmod")
+  library(quantmod)
+}
+
+if (!require(lmtest)) {
+  install.packages("lmtest")
+  library(lmtest)
+}
+
+if (!require(xtable)) {
+  install.packages("xtable")
+  library(xtable)
+}
+
+if (!require(forecast)) {
+  install.packages("forecast")
+  library(forecast)
+}
+#########################################################################################################
+## Parameters: P and Q - Maximum number of lags in the model | alpha -  # Significance Level
+#########################################################################################################
+
+P <- 2 # Maximum number of lags in the model
+Q <- 2 # Maximum number of lags in the model
+alpha <- 0.05 # Significance Level
+
+#########################################################################################################
+## Clean the data
+#########################################################################################################
+
+data <- read.csv("data/data_gdp_brazil.csv")
+
+#########################################################################################################
+## Changing variable names:
+## year and gdp_growth (gdp growth is measured as % per year)
+#########################################################################################################
+
+colnames(data) <- c("year", "gdp_growth")
+
+#########################################################################################################
+## Creating a xts object for work with time series
+#########################################################################################################
+
+data_xts <- xts(
+  x = data$gdp_growth,
+  order.by = as.Date(as.character(data$year), format = "%Y")
+)
+
+#########################################################################################################
+## Looking at the data
+#########################################################################################################
+
+gg <- ggplot(data = data, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Yearly GDP Growth (%)") +
+  scale_x_continuous(
+    limits = c(1900, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1900, to = 2020, by = 20)
+  ) +
+  geom_line(
+    aes(y = gdp_growth),
+    color = "#FF6347",
+    size = 1.5
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+print(gg)
+
+## Creating a folder for figures
+dir.create("figures")
+
+## Saving the last plot
+ggsave("figures/question_1/figure_gdp_growth.pdf", width = 11, height = 8.5)
+
+## Plot the autocorrelation of GDP growth
+pdf(file = "figures/question_1/figure_autocorrelation.pdf", width = 11, height = 8.5)
+acf(data_xts, ylab = "Autocorrelation", main = "Brazilian Yearly GDP Growth")
+dev.off()
+
+## Plot the Partial Autocorrelation Function of GDP growth
+pdf(file = "figures/question_1/figure_partial_autocorrelation.pdf", width = 11, height = 8.5)
+pacf(data_xts, ylab = "Partial Autocorrelation", main = "Brazilian Yearly GDP Growth")
+dev.off()
+
+#########################################################################################################
+## Looking at the data
+#########################################################################################################
+#########################################################################################################
+# Estimate many ARMA(p,q) models using loops
+#########################################################################################################
+arma <- vector(mode = "list", length = (P+1)*(Q+1)-1)
+
+# Loop over ARMA(p,q) models
+
+k <- 1
+
+for (p in 0:P){
+  for (q in 0:Q) {
+    if (p == 0 && q == 0) {
+      next
+    }
+    arma[[k]] <- arima(
+      x = data_xts,
+      order = c(p, 0, q),
+      include.mean = TRUE
+    )
+    k <- k + 1
+  }
+}
+
+## Create a matrix to store the results
+results <- matrix(NA, nrow = 17, ncol = 8)
+
+# Rename the columns
+colnames(results) <- c("ARMA(0,1)", "ARMA(0,2)", "ARMA(1,0)", "ARMA(1,1)", "ARMA(1,2)", "ARMA(2,0)", "ARMA(2,1)", "ARMA(2,2)")
+
+# Rename the rows
+rownames(results) <- c("BIC", "AIC",
+                       "Intercept","Standard_Error_Intercept","P_Value_Intercept",
+                       "Lag_MA_1", "Standard_Error_Lag_MA_1","P_Value_Lag_MA_1",
+                       "Lag_MA_2", "Standard_Error_Lag_MA_2","P_Value_Lag_MA_2",
+                       "Lag_AR_1", "Standard_Error_Lag_AR_1","P_Value_Lag_AR_1",
+                       "Lag_AR_2", "Standard_Error_Lag_AR_2","P_Value_Lag_AR_2")
+
+# Creating an empty list to store the outcomes
+list_results <- vector("list", length(arma))
+
+# Loop on the list arma
+for (i in seq_along(arma)) {
+  # Apply coeftest() function to each arima object
+  list_results[[i]] <- coeftest(arma[[i]])
+}
+
+# Loop to store the all Coefficients, Standard Errors and P-Values
+for (k in 1:8){
+  # Store BIC: We want to minimize it.
+  results[1, k] <- BIC(list_results[[k]])
+
+  # Store AIC: We want to minimize it.
+  results[2, k] <- AIC(list_results[[k]])
+
+  # Store the intercept
+  if (k == 1 | k == 3 ) {results[3, k] <- list_results[[k]][[2]]}
+  if (k == 2 | k == 4 | k == 6) {results[3, k] <- list_results[[k]][[3]]}
+  if (k==5 | k == 7) {results[3, k] <- list_results[[k]][[4]]}
+  if (k==8) {results[3, k] <- list_results[[k]][[5]]}
+  ###########################################################
+  # Store the Standard Error coefficients
+  if (k == 1 | k == 3) {results[4, k] <- list_results[[k]][[4]]}
+  if (k == 2 | k == 4 | k == 6) {results[4, k] <- list_results[[k]][[6]]}
+  if (k==5 | k == 7) {results[4, k] <- list_results[[k]][[8]]}
+  if (k==8) {results[4, k] <- list_results[[k]][[10]]}
+  ###########################################################
+  # Store the P-Values coefficients
+  if (k == 1 | k == 3) { results[5, k] <- list_results[[k]][[8]]}
+  if (k == 2 | k == 4 | k == 6) { results[5, k] <- list_results[[k]][[12]]}
+  if (k==5 | k == 7) {results[5, k] <- list_results[[k]][[16]]}
+  if (k==8) {results[5, k] <- list_results[[k]][[20]]}
+  ###########################################################
+  # Store the MALag 1 coefficients
+  if (k == 1 | k == 2) {results[6, k] <- list_results[[k]][[1]]}
+  if (k==3 | k == 6) {results[6, k] <- 0}
+  if (k==4 | k == 5) {results[6, k] <- list_results[[k]][[2]]}
+  if (k==7 | k == 8) {results[6, k] <- list_results[[k]][[3]]}
+  ###########################################################
+  # Store the Standard Error to MALag1 coefficients
+  if (k == 1) {results[7, k] <- list_results[[k]][[3]]}
+  if (k == 2) {results[7, k] <- list_results[[k]][[4]]}
+  if (k == 3 | k == 6) {results[7, k] <- 0}
+  if (k==4) {results[7, k] <- list_results[[k]][[5]]}
+  if (k==5) {results[7, k] <- list_results[[k]][[6]]}
+  if (k==7) {results[7, k] <- list_results[[k]][[7]]}
+  if (k==8) {results[7, k] <- list_results[[k]][[8]]}
+  ###########################################################
+  # Store the P-Values to MALag1 coefficients
+  if (k == 1) {results[8, k] <- list_results[[k]][[7]]}
+  if (k == 2) {results[8, k] <- list_results[[k]][[10]]}
+  if (k==3 | k == 6) {results[8, k] <- 0}
+  if (k==4) {results[8, k] <- list_results[[k]][[11]]}
+  if (k==5) {results[8, k] <- list_results[[k]][[14]]}
+  if (k==7) {results[8, k] <- list_results[[k]][[15]]}
+  if (k==8) {results[8, k] <- list_results[[k]][[18]]}
+  ###########################################################
+  # Store the MALag 2 coefficients
+  if (k == 1 | k == 3 | k == 4 | k== 6 | k == 7) {results[9, k] <- 0}
+  if (k == 2) {results[9, k] <- list_results[[k]][[2]]}
+  if (k==5) {results[9, k] <- list_results[[k]][[3]]}
+  if (k==8) {results[9, k] <- list_results[[k]][[4]]}
+  ###########################################################
+  # Store the Standard Error MALag 2 coefficients
+  if (k == 1 | k == 3 | k == 4 | k == 6 | k == 7) {results[10, k] <- 0}
+  if (k == 2) {results[10, k] <- list_results[[k]][[5]]}
+  if (k==5) {results[10, k] <- list_results[[k]][[7]]}
+  if (k==8) {results[10, k] <- list_results[[k]][[9]]}
+  ###########################################################
+  # Store the P-Values MALag 2 coefficients
+  if (k == 1 | k == 3 | k == 4 | k == 6 | k == 7) {results[11, k] <- 0}
+  if (k == 2) {results[11, k] <- list_results[[k]][[11]]}
+  if (k==5) {results[11, k] <- list_results[[k]][[15]]}
+  if (k==8) {results[11, k] <- list_results[[k]][[19]]}
+  ###########################################################
+  # Store the ARLag 1 coefficients
+  if (k == 1 | k == 2)
+  {results[12, k] <- 0} else {results[12, k] <- list_results[[k]][[1]]}
+  ###########################################################
+  # Store the Standard Error ARLag 1 coefficients
+  if (k == 1 | k == 2) {results[13, k] <- 0}
+  if (k==3) {results[13, k] <- list_results[[k]][[3]]}
+  if (k==4 | k == 6) {results[13, k] <- list_results[[k]][[4]]}
+  if (k==5 | k == 7) {results[13, k] <- list_results[[k]][[5]]}
+  if (k==8) {results[13, k] <- list_results[[k]][[6]]}
+  ###########################################################
+  # Store the P-Values ARLag 1 coefficients
+  if (k == 1 | k == 2) {results[14, k] <- 0}
+  if (k==3) {results[14, k] <- list_results[[k]][[7]]}
+  if (k==4 | k == 6) {results[14, k] <- list_results[[k]][[10]]}
+  if (k==5 | k == 7) {results[14, k] <- list_results[[k]][[13]]}
+  if (k==8) {results[14, k] <- list_results[[k]][[16]]}
+  ###########################################################
+  # Store the ARLag 2 coefficients
+  if (k < 6) {results[15, k] <- 0}
+  else {results[15, k] <- list_results[[k]][[2]]}
+  ###########################################################
+  # Store the Standard Error ARLag 2 coefficients
+  if (k < 6) {results[16, k] <- 0}
+  if (k==6) {results[16, k] <- list_results[[k]][[5]]}
+  if (k==7) {results[16, k] <- list_results[[k]][[6]]}
+  if (k==8) {results[16, k] <- list_results[[k]][[7]]}
+  ###########################################################
+  # Store the P-Values ARLag 2 coefficients
+  if (k < 6) {results[17, k] <- 0}
+  if (k==6) {results[17, k] <- list_results[[k]][[11]]}
+  if (k==7) {results[17, k] <- list_results[[k]][[14]]}
+  if (k==8) {results[17, k] <- list_results[[k]][[17]]}
+}
+
+#########################################################################################################
+## Formatting the results and leaving 4 decimal places after the comma
+#########################################################################################################
+
+results_format <- apply(results, MARGIN = c(1,2), FUN = as.numeric)
+results_format <- round(results_format, 4)
+results_format <- formatC(results_format, format = "f", digits = 4)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+dir.create("figures_latex")
+
+table_latex <- xtable(
+  results_format,
+  caption = "Table ARMA(p,q) - Estimated Coefficients",
+  label = "ARMA(p,q)",
+  align = rep("c", ncol(results_format) + 1),
+  digits = 3
+)
+
+print(table_latex, file = "figures_latex/table_arma.tex")
+
+#########################################################################################################
+## Forecast 10-years ahead using ARMA(p,q)
+#########################################################################################################
+## Estimate our forecasted values using our models
+#########################################################################################################
+
+arma_forecast <- list()
+
+for (i in 1:length(arma)) {
+  arma_forecast[[i]] <- predict(arma[[i]], n.ahead = 10)
+}
+
+#########################################################################################################
+# Create a list with all the necessary objects for ggplot
+#########################################################################################################
+forecast_matrix <- list()
+
+for (i in 1:length(arma_forecast)) {
+  forecast_matrix[[i]] <- data.frame(
+    "year" = 2000:2030,
+    "gdp_growth" = c(data$gdp_growth[data$year %in% 2000:2030], rep(NA, 10)),
+    "forecast" = c(rep(NA, 21), arma_forecast[[i]]$pred),
+    "CI_U" = c(rep(NA, 21), arma_forecast[[i]]$pred + qnorm(1 - alpha/2) * arma_forecast[[i]]$se),
+    "CI_L" = c(rep(NA, 21), arma_forecast[[i]]$pred + qnorm(alpha/2) * arma_forecast[[i]]$se)
+  )
+}
+
+#########################################################################################################
+## Forecast 10-years ahead using ARMA(p,q) - Here we have used a loop to create as much as needed plots
+## for all arma(pq) models
+#########################################################################################################
+forecast_graphs <- list()
+
+for (i in 1:length(forecast_matrix)) {
+  forecast_graphs[[i]] <- ggplot(data = forecast_matrix[[i]], aes(x = year)) +
+    theme_bw(base_size = 25) +
+    theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+    xlab("Year") + ylab("Yearly GDP Growth (%)") +
+    scale_x_continuous(
+      limits = c(2000, 2031),
+      expand = c(0,0),
+      breaks = seq(from = 2000, to = 2030, by = 5)
+    ) +
+    geom_line(
+      aes(y = gdp_growth, color = "Realized"),
+      size = 1.5
+    ) +
+    geom_line(
+      aes(y = forecast, color = "Forecast"),
+      size = 1.5
+    ) +
+    geom_line(
+      aes(y = CI_U),
+      color = "#85C0F9",
+      linetype = "dashed",
+      size = 1.5
+    ) +
+    geom_line(
+      aes(y = CI_L),
+      color = "#85C0F9",
+      linetype = "dashed",
+      size = 1.5
+    ) +
+    scale_colour_manual(values = c(
+      "#85C0F9", "#0F2080"
+    )) +
+    theme(
+      legend.title = element_blank(),
+      legend.position = "bottom"
+    )
+}
+
+#########################################################################################################
+## Visualizing all plots
+#########################################################################################################
+
+print(forecast_graphs[[1]])
+print(forecast_graphs[[2]])
+print(forecast_graphs[[3]])
+print(forecast_graphs[[4]])
+print(forecast_graphs[[5]])
+print(forecast_graphs[[6]])
+print(forecast_graphs[[7]])
+print(forecast_graphs[[8]])
+
+#########################################################################################################
+## Saving all plots
+#########################################################################################################
+
+for (i in 1:length(forecast_graphs)) {
+  filename <- paste0("figure_", i, ".pdf")
+  ggsave(filename, forecast_graphs[[i]], path = "figures/question_1",width = 11, height = 8.5)
+}
