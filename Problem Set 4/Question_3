@@ -1,0 +1,194 @@
+#########################################################################################################
+# Problem Set 4
+# Course: Econometrics 2
+# Question 3
+# Goal: Investigate whether there is any cointegrating relation between our 3 variables - Johansen's Test
+#########################################################################################################
+# Organize the working enviroment
+#########################################################################################################
+# Cleaning the working environment
+#########################################################################################################
+
+rm(list = ls())
+
+#########################################################################################################
+## Load the required packages
+#########################################################################################################
+
+if (!require(stringr)) {
+  install.packages("stringr")
+  library(stringr)
+}
+
+if (!require(lubridate)) {
+  install.packages("lubridate")
+  library(lubridate)
+}
+
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if (!require(stargazer)) {
+  install.packages("stargazer")
+  library(stargazer)
+}
+
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if (!require(quantmod)) {
+  install.packages("quantmod")
+  library(quantmod)
+}
+
+if (!require(lmtest)) {
+  install.packages("lmtest")
+  library(lmtest)
+}
+
+if (!require(xtable)) {
+  install.packages("xtable")
+  library(xtable)
+}
+
+if (!require(forecast)) {
+  install.packages("forecast")
+  library(forecast)
+}
+
+if (!require(ARDL)) {
+  install.packages("ARDL")
+  library(ARDL)
+}
+
+if (!require(dynlm)) {
+  install.packages("dynlm")
+  library(dynlm)
+}
+
+if (!require(sandwich)) {
+  install.packages("sandwich")
+  library(sandwich)
+}
+
+if (!require(vars)) {
+  install.packages("vars")
+  library(vars)
+}
+
+if (!require(data.table)) {
+  install.packages("data.table")
+  library(data.table)
+}
+
+if (!require(urca)) {
+  install.packages("urca")
+  library(urca)
+}
+
+
+#########################################################################################################
+## Clean the data
+#########################################################################################################
+
+data_br <- fread("data/brazil_data.csv")
+data_usa <- fread("data/usa_data.csv")
+
+#########################################################################################################
+## Changing variable names:
+#########################################################################################################
+
+colnames(data_br) <- c("date", "exchange_rate", "ipca", "x")
+colnames(data_usa) <- c("date", "cpi_index")
+
+#########################################################################################################
+## 3.1 - Subset of data - 1995 to 2019 
+#########################################################################################################
+
+data_br <- data_br[, -4]
+
+data_br <- data_br %>%
+  mutate(date = gsub("\\.", "-", date))
+
+data_br$date <- gsub("\\b1\\b", "10", data_br$date)
+
+data_br <- data_br %>%
+  mutate(date = paste(date, "01", sep = "-")) %>%       
+  mutate(date = ymd(date))                              
+
+data_usa <- data_usa %>%
+  mutate(date = ymd(date))
+
+data_br <- subset(data_br, date >= ymd("1995-01-01") & date <= ymd("2019-12-01"))
+data_usa <- subset(data_usa, date >= ymd("1995-01-01") & date <= ymd("2019-12-01"))
+
+data <- merge(data_br, data_usa, by = "date")
+
+#########################################################################################################
+## 3.1 - Transforming the variables 
+#########################################################################################################
+
+data <- data %>%
+  mutate(ln_ipca = 100 * (log(ipca) - log(ipca[date == ymd("1995-01-01")])),
+         ln_exchange_rate = 100 * (log(exchange_rate) - log(exchange_rate[date == ymd("1995-01-01")])),
+         ln_cpi_index = 100 * (log(cpi_index) - log(cpi_index[date == ymd("1995-01-01")])))
+
+#########################################################################################################
+## 3.1 - Define Z_{t} = a'Y_{t} 
+#########################################################################################################
+
+data <- data %>%
+  mutate(z = ln_ipca - ln_exchange_rate - ln_cpi_index)
+
+#########################################################################################################
+## 3.1 - Johansen's Test - Data
+#########################################################################################################
+
+data_jt <- subset(data, select = c(ln_ipca, ln_exchange_rate, ln_cpi_index))
+
+#########################################################################################################
+## 3.1 - Selecting the number of lags from information criteria 
+#########################################################################################################
+
+VARselect(data_jt, lag.max = 12, type = c("both"))
+
+##############################################################################
+# Testing for cointegration
+##############################################################################
+# Johansen's test: Instead of using the specification used by Johansen and
+##############################################################################
+# COnstant and 12 lags
+##############################################################################
+vecm1 <- ca.jo(
+  x = data_jt,
+  ecdet = "const",
+  type  = "eigen",
+  K = 12,
+  spec = "transitory"
+)
+
+# Print the results
+summary(vecm1)
+
+##############################################################################
+# Testing for cointegration
+##############################################################################
+# Johansen's test: Instead of using the specification used by Johansen and
+##############################################################################
+# Constant and 2 lags
+##############################################################################
+
+vecm2 <- ca.jo(
+  x = data_jt,
+  ecdet = "const",
+  type  = "eigen",
+  K = 2,
+  spec = "transitory"
+)
+
+# Print the results
+summary(vecm2)
