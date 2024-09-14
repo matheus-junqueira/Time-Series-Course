@@ -1,0 +1,251 @@
+#########################################################################################################
+## Problem Set 2
+## Course: Econometrics 2
+## Question 4
+## Goal: Our goal is using the data of corn production between 1950 and 2021, test wheter this 
+## stochastic process has a unit root or not
+#########################################################################################################
+## Organize the working enviroment
+#########################################################################################################
+## Cleaning the working environment
+#########################################################################################################
+
+rm(list = ls())
+
+#########################################################################################################
+## Load the required packages
+#########################################################################################################
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if (!require(urca)) {
+  install.packages("urca")
+  library(urca)
+}
+
+if (!require(zoo)) {
+  install.packages("zoo")
+  library(zoo)
+}
+
+if (!require(xtable)) {
+  install.packages("xtable")
+  library(xtable)
+}
+
+if (!require(stringr)) {
+  install.packages("stringr")
+  library(stringr)
+}
+
+if (!require(data.table)) {
+  install.packages("data.table")
+  library(data.table)
+}
+
+if (!require(quantmod)) {
+  install.packages("quantmod")
+  library(quantmod)
+}
+
+if (!require(lubridate)) {
+  install.packages("lubridate")
+  library(lubridate)
+}
+
+#########################################################################################################
+## Clean the data
+#########################################################################################################
+
+data <- read.csv("data/corn-production-land-us.csv")
+
+#########################################################################################################
+## Changing variable names
+#########################################################################################################
+
+colnames(data) <- c("entity", "code", "year", "hectares", "tonnes")
+
+#########################################################################################################
+## Subset of data
+#########################################################################################################
+
+data <- subset(data, year >= 1950)
+
+#########################################################################################################
+## Looking at the data
+#########################################################################################################
+
+gg <- ggplot(data = data, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Corn Production (tonnes)") +
+  scale_x_continuous(
+    limits = c(1950, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1950, to = 2020, by = 10)
+  ) +
+  geom_line(
+    aes(y = tonnes),
+    color = "#0F2080",
+    size = 1.5
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+print(gg)
+
+## Saving the last plot
+
+ggsave("figures_question_4/corn_production_figure.pdf", width = 11, height = 8.5)
+
+
+#########################################################################################################
+## Looking at the data ln(tonnes)
+#########################################################################################################
+
+#Creating ln(tonnes)
+data$ln_tonnes <- log(data$tonnes)
+
+gg <- ggplot(data = data, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Corn Production - ln(tonnes)") +
+  scale_x_continuous(
+    limits = c(1950, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1950, to = 2020, by = 10)
+  ) +
+  geom_line(
+    aes(y = ln_tonnes),
+    color = "#0F2080",
+    size = 1.5
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+print(gg)
+
+## Saving the last plot
+
+ggsave("figures_question_4/corn_production_lntonnes_figure.pdf", width = 11, height = 8.5)
+
+#########################################################################################################
+## Looking at ACF and ACFP
+#########################################################################################################
+
+pdf(file = "figures_question_4/figure_autocorrelation.pdf", width = 11, height = 8.5)
+acf(data$tonnes, ylab = "Autocorrelation", main = "Corn Production in tonnes")
+dev.off()
+
+pdf(file = "figures_question_4/figure_partial_autocorrelation.pdf", width = 11, height = 8.5)
+pacf(data$tonnes, ylab = "Partial Autocorrelation", main = "Corn Production in tonnes")
+dev.off()
+
+#########################################################################################################
+# There is a clear trend in the corn production. So we will use a Augmented
+# Dickey-Fuller test with drift and time trend.
+#########################################################################################################
+#########################################################################################################
+# Preferred Augmented Dickey-Fuller Test
+#########################################################################################################
+# Run the test using BIC to choose the number of lags
+#########################################################################################################
+adf_trend <- ur.df(
+  y = data$tonnes,
+  type = "trend",
+  selectlags = "BIC"
+)
+
+#########################################################################################################
+# The test statistic is tau1 in the slides. Its critical values are reported at the bottom.
+#########################################################################################################
+print(summary(adf_trend))
+
+
+#########################################################################################################
+# Creating an array that receives the results
+#########################################################################################################
+
+summary_adf <- summary(adf_trend)
+adf_matrix <- matrix(NA, nrow = 3, ncol = 4)
+colnames(adf_matrix) <- c("Statistic","Critical Value (1%)", "Critical Value (5%)", "Critical Value (10%)")
+row.names(adf_matrix) <- c("tau3", "phi2", "phi3")
+
+adf_matrix[1,1] <- adf_trend@teststat[1,1]
+adf_matrix[2,1] <- adf_trend@teststat[1,2]
+adf_matrix[3,1] <- adf_trend@teststat[1,3]
+adf_matrix[1,2] <- summary_adf@cval[1,1]
+adf_matrix[1,3] <- summary_adf@cval[1,2]
+adf_matrix[1,4] <- summary_adf@cval[1,3]
+adf_matrix[2,2] <- summary_adf@cval[2,1]
+adf_matrix[2,3] <- summary_adf@cval[2,2]
+adf_matrix[2,4] <- summary_adf@cval[2,3]
+adf_matrix[3,2] <- summary_adf@cval[3,1]
+adf_matrix[3,3] <- summary_adf@cval[3,2]
+adf_matrix[3,4] <- summary_adf@cval[3,3]
+
+print(adf_matrix)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+table_latex <- xtable(
+  adf_matrix,
+  caption = "ADF Test with drift and time trend",
+  label = "ADF Test",
+  align = rep("c", ncol(adf_matrix) + 1),
+  digits = 3
+)
+
+print(table_latex, file = "figures_question_4/table_adf_test.txt")
+
+#########################################################################################################
+# Creating an array that receives the results
+#########################################################################################################
+
+
+coef_reg <- matrix(NA, nrow = 4, ncol = 4)
+
+colnames(coef_reg) <- c("Estimate", "Std. Error", "t-value", "Pr(>|t|)")
+row.names(coef_reg) <- c("Intercept", "z Lag 1", "Trend", "z Diff. Lag")
+
+
+coef_reg[1, ] <- summary_adf@testreg$coefficients[1, ]
+coef_reg[2, ] <- summary_adf@testreg$coefficients[2, ]
+coef_reg[3, ] <- summary_adf@testreg$coefficients[3, ]
+coef_reg[4, ] <- summary_adf@testreg$coefficients[4, ]
+
+#########################################################################################################
+## Formatting the results and leaving 4 decimal places after the comma
+#########################################################################################################
+
+coef_reg_format <- apply(coef_reg, MARGIN = c(1,2), FUN = as.numeric)
+coef_reg_format <- round(coef_reg_format, 4)
+coef_reg_format <- formatC(coef_reg_format, format = "f", digits = 4)
+
+print(coef_reg_format)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+table_latex_reg <- xtable(
+  coef_reg_format,
+  caption = "ADF Test - Regression with drift and time trend",
+  label = "ADF Regression",
+  align = rep("c", ncol(coef_reg_format) + 1),
+  digits = 3
+)
+
+print(table_latex_reg, file = "figures_question_4/table_adf_test_regression.txt")
