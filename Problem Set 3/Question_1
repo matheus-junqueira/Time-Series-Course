@@ -1,0 +1,597 @@
+#########################################################################################################
+# Problem Set 3
+# Course: Econometrics 2
+# Question 1
+# Goal: Our goal is to forecast Brazilian Annual GDP Growth in 2020
+#########################################################################################################
+# Organize the working enviroment
+#########################################################################################################
+# Cleaning the working environment
+#########################################################################################################
+
+rm(list = ls())
+
+#########################################################################################################
+## Load the required packages
+#########################################################################################################
+
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if (!require(stargazer)) {
+  install.packages("stargazer")
+  library(stargazer)
+}
+
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if (!require(quantmod)) {
+  install.packages("quantmod")
+  library(quantmod)
+}
+
+if (!require(lmtest)) {
+  install.packages("lmtest")
+  library(lmtest)
+}
+
+if (!require(xtable)) {
+  install.packages("xtable")
+  library(xtable)
+}
+
+if (!require(forecast)) {
+  install.packages("forecast")
+  library(forecast)
+}
+
+if (!require(ARDL)) {
+  install.packages("ARDL")
+  library(ARDL)
+}
+
+if (!require(dynlm)) {
+  install.packages("dynlm")
+  library(dynlm)
+}
+
+if (!require(sandwich)) {
+  install.packages("sandwich")
+  library(sandwich)
+}
+
+if (!require(vars)) {
+  install.packages("vars")
+  library(vars)
+}
+
+#########################################################################################################
+## Clean the data
+#########################################################################################################
+
+data <- read.csv("add_file_path/data_brazil.csv")
+data_2019 <- read.csv("add_file_path/data_brazil.csv")
+
+#########################################################################################################
+## Changing variable names:
+## year and gdp_growth (gdp growth is measured as % per year)
+#########################################################################################################
+
+colnames(data) <- c("year", "gdp_growth", "real_exchange_rate", "ipc_fipe_pct")
+colnames(data_2019) <- c("year", "gdp_growth", "real_exchange_rate", "ipc_fipe_pct")
+
+#########################################################################################################
+## Subset of data - 1942 
+#########################################################################################################
+#########################################################################################################
+## Creating a ts object for work with time series
+#########################################################################################################
+
+data_2019 <- data_2019[-c(1:41), ]
+data_2019 <- data_2019[-nrow(data_2019), ]
+data_2019 <- data_2019[-nrow(data_2019), ]
+
+gdp_growth_ts_2019 <- ts(data_2019$gdp_growth,
+                         start = c(1942),
+                         end = c(2019),
+                         frequency = 1)
+
+real_exchange_rate_ts_2019 <- ts(data_2019$real_exchange_rate,
+                                 start = c(1942),
+                                 end = c(2019),
+                                 frequency = 1)
+
+ipc_fipe_pct_ts_2019 <- ts(data_2019$ipc_fipe_pct,
+                           start = c(1942),
+                           end = c(2019),
+                           frequency = 1)
+
+ADLdata_2019 <- ts.union(gdp_growth_ts_2019, real_exchange_rate_ts_2019, ipc_fipe_pct_ts_2019)
+
+#########################################################################################################
+## Creating a ts object for work with time series and plot the graphs
+#########################################################################################################
+
+gdp_growth_ts <- ts(data$gdp_growth,
+                    start = c(1901),
+                    end = c(2021),
+                    frequency = 1)
+
+real_exchange_rate_ts <- ts(data$real_exchange_rate,
+                            start = c(1901),
+                            end = c(2021),
+                            frequency = 1)
+
+ipc_fipe_pct_ts <- ts(data$ipc_fipe_pct,
+                      start = c(1901),
+                      end = c(2021),
+                      frequency = 1)
+
+
+year <- seq(1901,2021)
+
+df <- data.frame(
+  year = year,
+  gdp_growth_1 = gdp_growth_ts,
+  real_exchange_rate_1 = real_exchange_rate_ts,
+  ipc_fipe_pct_1 = ipc_fipe_pct_ts
+)
+
+df_subset <- df[df$year > 1941 & df$year < 2021, ]
+
+#########################################################################################################
+## Looking at the data
+#########################################################################################################
+#########################################################################################################
+## GDP
+#########################################################################################################
+
+gg <- ggplot(data = df_subset, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Annual Real GDP Growth measured in (%)") +
+  scale_x_continuous(
+    limits = c(1940, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1940, to = 2020, by = 10)
+  ) +
+  geom_line(
+    aes(y = df_subset$gdp_growth_1),
+    color = "#0000FF",
+    size = 1.5
+  )
+
+print(gg)
+
+## Saving the last plot
+
+ggsave("add_file_path/figure_gdp_growth.pdf", width = 11, height = 8.5)
+
+
+#########################################################################################################
+## Exchange Rate
+#########################################################################################################
+gg <- ggplot(data = df_subset, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Annual Average Exchange Rate between 
+      Real and Dollar") +
+  scale_x_continuous(
+    limits = c(1940, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1940, to = 2020, by = 10)
+  ) +
+  geom_line(
+    aes(y = df_subset$real_exchange_rate_1),
+    color = "#0000FF",
+    size = 1.5
+  )
+
+print(gg)
+
+## Saving the last plot
+
+ggsave("add_file_path/figure_exchange_rate.pdf", width = 11, height = 8.5)
+
+#########################################################################################################
+## IPC
+#########################################################################################################
+
+gg <- ggplot(data = df_subset, aes(x = year)) +
+  theme_bw(base_size = 25) +
+  theme(plot.margin = unit(c(5, 7, 2, 2), "mm")) +
+  xlab("Year") + ylab("Annual Infation measured by IPC-FIPE in %") +
+  scale_x_continuous(
+    limits = c(1940, 2021),
+    expand = c(0,0),
+    breaks = seq(from = 1940, to = 2020, by = 10)
+  ) +
+  geom_line(
+    aes(y = df_subset$ipc_fipe_pct_1),
+    color = "#0000FF",
+    size = 1.5
+  )
+
+print(gg)
+
+## Saving the last plot
+
+ggsave("add_file_path/figure_ipc.pdf", width = 11, height = 8.5)
+
+
+#########################################################################################################
+## Looking at ACF and ACFP GDP
+#########################################################################################################
+
+pdf(file = "add_file_path/figure_autocorrelation_gdp.pdf", width = 11, height = 8.5)
+acf(df_subset$gdp_growth_1, ylab = "Autocorrelation", main = "Annual Real GDP Growth measured in (%)")
+dev.off()
+
+pdf(file = "add_file_path/figure_partial_autocorrelation_gdp.pdf", width = 11, height = 8.5)
+pacf(df_subset$gdp_growth_1, ylab = "Partial Autocorrelation", main = "Annual Real GDP Growth measured in (%)")
+dev.off()
+
+#########################################################################################################
+## Looking at ACF and ACFP Exchange Rate
+#########################################################################################################
+
+pdf(file = "add_file_path/figure_autocorrelation_exchange_rate.pdf", width = 11, height = 8.5)
+acf(df_subset$real_exchange_rate_1, ylab = "Autocorrelation", main = "Annual Average Exchange Rate between Real and Dollar")
+dev.off()
+
+pdf(file = "add_file_path/figure_partial_autocorrelation_exchange_rate.pdf", width = 11, height = 8.5)
+pacf(df_subset$real_exchange_rate_1, ylab = "Partial Autocorrelation", main = "Annual Average Exchange Rate between Real and Dollar")
+dev.off()
+
+#########################################################################################################
+## Looking at ACF and ACFP IPC-Fipe
+#########################################################################################################
+
+pdf(file = "add_file_path/figure_autocorrelation_ipcfipe.pdf", width = 11, height = 8.5)
+acf(df_subset$ipc_fipe_pct_1, ylab = "Autocorrelation", main = "Annual Infation measured by IPC-FIPE in %")
+dev.off()
+
+pdf(file = "add_file_path/figure_partial_autocorrelation_ipcfipe.pdf", width = 11, height = 8.5)
+pacf(df_subset$ipc_fipe_pct_1, ylab = "Partial Autocorrelation", main = "Annual Infation measured by IPC-FIPE in %")
+dev.off()
+
+#########################################################################################################
+# We will use a Augmented
+# Dickey-Fuller test with drift and time trend.
+#########################################################################################################
+#########################################################################################################
+# Preferred Augmented Dickey-Fuller Test
+#########################################################################################################
+# Run the test using BIC to choose the number of lags
+#########################################################################################################
+# GDP
+#########################################################################################################
+
+gdp_trend <- ur.df(
+  y = df_subset$gdp_growth_1,
+  type = "trend",
+  selectlags = "BIC"
+)
+
+#########################################################################################################
+# The test statistic is tau1 in the slides. Its critical values are reported at the bottom.
+#########################################################################################################
+print(summary(gdp_trend))
+
+
+#########################################################################################################
+# Creating an array that receives the results
+#########################################################################################################
+
+summary_adf <- summary(gdp_trend)
+adf_matrix <- matrix(NA, nrow = 3, ncol = 4)
+colnames(adf_matrix) <- c("Statistic","Critical Value (1%)", "Critical Value (5%)", "Critical Value (10%)")
+row.names(adf_matrix) <- c("tau3", "phi2", "phi3")
+
+adf_matrix[1,1] <- gdp_trend@teststat[1,1]
+adf_matrix[2,1] <- gdp_trend@teststat[1,2]
+adf_matrix[3,1] <- gdp_trend@teststat[1,3]
+adf_matrix[1,2] <- summary_adf@cval[1,1]
+adf_matrix[1,3] <- summary_adf@cval[1,2]
+adf_matrix[1,4] <- summary_adf@cval[1,3]
+adf_matrix[2,2] <- summary_adf@cval[2,1]
+adf_matrix[2,3] <- summary_adf@cval[2,2]
+adf_matrix[2,4] <- summary_adf@cval[2,3]
+adf_matrix[3,2] <- summary_adf@cval[3,1]
+adf_matrix[3,3] <- summary_adf@cval[3,2]
+adf_matrix[3,4] <- summary_adf@cval[3,3]
+
+print(adf_matrix)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+table_latex <- xtable(
+  adf_matrix,
+  caption = "ADF Test with drift and time trend - Annual Real GDP Growth",
+  label = "ADF Test",
+  align = rep("c", ncol(adf_matrix) + 1),
+  digits = 3
+)
+
+print(table_latex, file = "add_file_path/table_adf_test_gdp.txt")
+
+#########################################################################################################
+# Exchange Rate
+#########################################################################################################
+
+exchange_rate_trend <- ur.df(
+  y = df_subset$real_exchange_rate_1,
+  type = "trend",
+  selectlags = "BIC"
+)
+
+#########################################################################################################
+# The test statistic is tau1 in the slides. Its critical values are reported at the bottom.
+#########################################################################################################
+print(summary(exchange_rate_trend))
+
+
+#########################################################################################################
+# Creating an array that receives the results
+#########################################################################################################
+
+summary_adf <- summary(exchange_rate_trend)
+adf_matrix <- matrix(NA, nrow = 3, ncol = 4)
+colnames(adf_matrix) <- c("Statistic","Critical Value (1%)", "Critical Value (5%)", "Critical Value (10%)")
+row.names(adf_matrix) <- c("tau3", "phi2", "phi3")
+
+adf_matrix[1,1] <- exchange_rate_trend@teststat[1,1]
+adf_matrix[2,1] <- exchange_rate_trend@teststat[1,2]
+adf_matrix[3,1] <- exchange_rate_trend@teststat[1,3]
+adf_matrix[1,2] <- summary_adf@cval[1,1]
+adf_matrix[1,3] <- summary_adf@cval[1,2]
+adf_matrix[1,4] <- summary_adf@cval[1,3]
+adf_matrix[2,2] <- summary_adf@cval[2,1]
+adf_matrix[2,3] <- summary_adf@cval[2,2]
+adf_matrix[2,4] <- summary_adf@cval[2,3]
+adf_matrix[3,2] <- summary_adf@cval[3,1]
+adf_matrix[3,3] <- summary_adf@cval[3,2]
+adf_matrix[3,4] <- summary_adf@cval[3,3]
+
+print(adf_matrix)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+table_latex <- xtable(
+  adf_matrix,
+  caption = "ADF Test with drift and time trend - Exchange Rate",
+  label = "ADF Test",
+  align = rep("c", ncol(adf_matrix) + 1),
+  digits = 3
+)
+
+print(table_latex, file = "add_file_path/table_adf_test_exchange_rate.txt")
+
+#########################################################################################################
+# IPC
+#########################################################################################################
+
+ipc_trend <- ur.df(
+  y = df_subset$ipc_fipe_pct_1,
+  type = "trend",
+  selectlags = "BIC"
+)
+
+#########################################################################################################
+# The test statistic is tau1 in the slides. Its critical values are reported at the bottom.
+#########################################################################################################
+print(summary(ipc_trend))
+
+
+#########################################################################################################
+# Creating an array that receives the results
+#########################################################################################################
+
+summary_adf <- summary(ipc_trend)
+adf_matrix <- matrix(NA, nrow = 3, ncol = 4)
+colnames(adf_matrix) <- c("Statistic","Critical Value (1%)", "Critical Value (5%)", "Critical Value (10%)")
+row.names(adf_matrix) <- c("tau3", "phi2", "phi3")
+
+adf_matrix[1,1] <- ipc_trend@teststat[1,1]
+adf_matrix[2,1] <- ipc_trend@teststat[1,2]
+adf_matrix[3,1] <- ipc_trend@teststat[1,3]
+adf_matrix[1,2] <- summary_adf@cval[1,1]
+adf_matrix[1,3] <- summary_adf@cval[1,2]
+adf_matrix[1,4] <- summary_adf@cval[1,3]
+adf_matrix[2,2] <- summary_adf@cval[2,1]
+adf_matrix[2,3] <- summary_adf@cval[2,2]
+adf_matrix[2,4] <- summary_adf@cval[2,3]
+adf_matrix[3,2] <- summary_adf@cval[3,1]
+adf_matrix[3,3] <- summary_adf@cval[3,2]
+adf_matrix[3,4] <- summary_adf@cval[3,3]
+
+print(adf_matrix)
+
+#########################################################################################################
+## It allows you to create well-formatted
+## tables from R data frames or matrices, and export
+## them directly in LaTeX code to be included in a LaTeX document.
+#########################################################################################################
+
+table_latex <- xtable(
+  adf_matrix,
+  caption = "ADF Test with drift and time trend - IPC",
+  label = "ADF Test",
+  align = rep("c", ncol(adf_matrix) + 1),
+  digits = 3
+)
+
+print(table_latex, file = "add_file_path/table_adf_test_Annual Infation.txt")
+
+
+###############################################################################
+# Estimate an ADL(2,1) - GDP growth as your dependent variable and Exchange 
+# Rate as your predictor
+###############################################################################
+
+###############################################################################
+# ARDL 
+###############################################################################
+
+model_gdp_exchange_21 <- dynlm(gdp_growth_ts_2019 ~ L(gdp_growth_ts_2019) + L(gdp_growth_ts_2019, 2) +
+                                 L(real_exchange_rate_ts_2019))
+
+
+###############################################################################
+# Coefficient - Summary
+###############################################################################
+
+summary(model_gdp_exchange_21)
+
+coef_model_gdp_exchange_21 <- coeftest(model_gdp_exchange_21, vcov. = sandwich)
+print(coef_model_gdp_exchange_21)
+
+latex_table <- stargazer(coef_model_gdp_exchange_21, type = "latex")
+
+cat(latex_table)
+writeLines(latex_table, "add_file_path/table_summary_ADL_21_exchange_gdp.txt")
+
+###############################################################################
+# Forecast
+###############################################################################
+
+last_two_rows <- tail(data_2019, 2)
+matrix_last_two_rows <- as.matrix(last_two_rows)
+matrix_last_two_rows <- matrix_last_two_rows[, -1]
+
+model_gdp_exchange_21_forecast <- coef(model_gdp_exchange_21) %*% c(1, matrix_last_two_rows[2,1], matrix_last_two_rows[1,1], matrix_last_two_rows[2,2])
+
+model_gdp_exchange_21_forecast
+
+window(gdp_growth_ts, c(2020, 1), c(2020, 1)) - model_gdp_exchange_21_forecast
+
+###############################################################################
+# Estimate an ADL(2,2) - GDP growth as your dependent variable and Inflation 
+# as your predictor
+###############################################################################
+
+###############################################################################
+# ARDL 
+###############################################################################
+
+model_gdp_ipc_22 <- dynlm(gdp_growth_ts_2019 ~ L(gdp_growth_ts_2019) + L(gdp_growth_ts_2019, 2) +
+                            L(ipc_fipe_pct_ts_2019) + L(ipc_fipe_pct_ts_2019, 2))
+
+###############################################################################
+# Coefficient - Summary
+###############################################################################
+
+summary(model_gdp_ipc_22)
+
+coef_model_gdp_ipc_22 <- coeftest(model_gdp_ipc_22, vcov. = sandwich)
+print(coef_model_gdp_ipc_22)
+
+latex_table <- stargazer(coef_model_gdp_ipc_22, type = "latex")
+
+cat(latex_table)
+writeLines(latex_table, "add_file_path/table_summary_ADL_22_ipc_gdp.txt")
+###############################################################################
+# Forecast
+###############################################################################
+
+last_two_rows <- tail(data_2019, 2)
+matrix_last_two_rows <- as.matrix(last_two_rows)
+matrix_last_two_rows <- matrix_last_two_rows[, -1]
+
+model_gdp_ipc_22_forecast <- coef(model_gdp_ipc_22) %*% c(1, matrix_last_two_rows[2,1], matrix_last_two_rows[1,1], matrix_last_two_rows[2,3], matrix_last_two_rows[1,3])
+
+model_gdp_ipc_22_forecast
+
+window(gdp_growth_ts, c(2020, 1), c(2020, 1)) - model_gdp_ipc_22_forecast
+
+###############################################################################
+# Estimate an ADL(2,2,2) - GDP growth as your dependent variable and Inflation 
+# and Exchange Rate as your predictor
+###############################################################################
+
+###############################################################################
+# ARDL 
+###############################################################################
+
+model_3 <- dynlm(gdp_growth_ts_2019 ~ L(gdp_growth_ts_2019) + L(gdp_growth_ts_2019, 2) +
+                   L(real_exchange_rate_ts_2019) + L(real_exchange_rate_ts_2019, 2) + L(ipc_fipe_pct_ts_2019) + L(ipc_fipe_pct_ts_2019, 2))
+
+###############################################################################
+# Coefficient - Summary
+###############################################################################
+
+summary(model_3)
+
+coef_model_3 <- coeftest(model_3, vcov. = sandwich)
+print(coef_model_3)
+
+latex_table <- stargazer(coef_model_3, type = "latex")
+
+cat(latex_table)
+writeLines(latex_table, "add_file_path/table_summary_model_3.txt")
+
+###############################################################################
+# Forecast
+###############################################################################
+
+last_two_rows <- tail(data_2019, 2)
+matrix_last_two_rows <- as.matrix(last_two_rows)
+matrix_last_two_rows <- matrix_last_two_rows[, -1]
+
+model_3_forecast <- coef(model_3) %*% c(1, matrix_last_two_rows[2,1], matrix_last_two_rows[1,1], matrix_last_two_rows[2,2], 
+                                        matrix_last_two_rows[1,2], matrix_last_two_rows[2,3], matrix_last_two_rows[1,3])
+
+model_3_forecast
+
+window(gdp_growth_ts, c(2020, 1), c(2020, 1)) - model_3_forecast
+
+###############################################################################
+# Estimate an ARMA(2,0) - GDP growth as your dependent
+###############################################################################
+
+###############################################################################
+# ARMA(2,0) 
+###############################################################################
+
+model_4 <- dynlm(gdp_growth_ts_2019 ~ L(gdp_growth_ts_2019) + L(gdp_growth_ts_2019, 2))
+
+###############################################################################
+# Coefficient - Summary
+###############################################################################
+
+summary(model_4)
+
+coef_model_4 <- coeftest(model_4, vcov. = sandwich)
+print(coef_model_4)
+
+latex_table <- stargazer(coef_model_4, type = "latex")
+
+cat(latex_table)
+writeLines(latex_table, "add_file_path/table_summary_model_4.txt")
+
+###############################################################################
+# Forecast
+###############################################################################
+
+last_two_rows <- tail(data_2019, 2)
+matrix_last_two_rows <- as.matrix(last_two_rows)
+matrix_last_two_rows <- matrix_last_two_rows[, -1]
+
+model_4_forecast <- coef(model_4) %*% c(1, matrix_last_two_rows[2,1], matrix_last_two_rows[1,1])
+
+model_4_forecast
+
+window(gdp_growth_ts, c(2020, 1), c(2020, 1)) - model_4_forecast
