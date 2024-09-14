@@ -1,0 +1,137 @@
+#########################################################################################################
+## Problem Set 2
+## Course: Econometrics 2
+## Question 2
+## This code was made based on the Problem Set 1 code for Monte Carlo Simulation
+#########################################################################################################
+## Organize the working enviroment
+#########################################################################################################
+## Cleaning the working environment
+#########################################################################################################
+
+rm(list = ls())
+
+#########################################################################################################
+## Load the required packages
+#########################################################################################################
+if (!require(dplyr)) {
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+
+if (!require(ggplot2)) {
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if (!require(urca)) {
+  install.packages("urca")
+  library(urca)
+}
+
+if (!require(lmtest)) {
+  install.packages("lmtest")
+  library(lmtest)
+}
+
+if (!require(xtable)) {
+  install.packages("xtable")
+  library(xtable)
+}
+
+if (!require(stringr)) {
+  install.packages("stringr")
+  library(stringr)
+}
+
+if (!require(data.table)) {
+  install.packages("data.table")
+  library(data.table)
+}
+
+if (!require(quantmod)) {
+  install.packages("quantmod")
+  library(quantmod)
+}
+
+if (!require(lpdensity)) {
+  install.packages("lpdensity")
+  library(lpdensity)
+}
+
+#########################################################################################################
+## Set seed
+#########################################################################################################
+
+set.seed(23052023)
+
+#########################################################################################################
+## Parameters
+#########################################################################################################
+#########################################################################################################
+## 1) Y = alpha + delta*t + epsilon_t where alpha = 0 and delta = 1
+#########################################################################################################
+
+intercept <- 0
+trend_coef <- 1
+
+#########################################################################################################
+## Length of the time series
+#########################################################################################################
+
+capT <- 10000
+
+#########################################################################################################
+## Number of Monte Carlo repetitions
+#########################################################################################################
+
+n_simulations <- 10000
+
+#########################################################################################################
+## Significance level
+#########################################################################################################
+
+significance_level <- 0.1
+
+#########################################################################################################
+## Degrees of Freedom
+#########################################################################################################
+
+df_values <- c(1, 5)
+
+#########################################################################################################
+## Run the Monte Carlo Experiment - The Results will be given bellow
+#########################################################################################################
+#########################################################################################################
+## Here we create a counter for rejections that will count for every rejections in the simulation
+#########################################################################################################
+## It is important to note that this code was developed based on the code provided by the professor for Problem Set 1. 
+## We made modifications to replace the previous ARIMA model with the trend model required in the assignment. 
+## Additionally, to speed up the model execution, we did not create a matrix to store the values of each regression. 
+## Instead, we used a counter that performs the test for each simulation and keeps track of the rejections, allowing us 
+## to calculate the rejection rate for each degree of freedom.
+#########################################################################################################
+#########################################################################################################
+
+for (df in df_values) {
+  rejection_count <- 0 # Counter for rejections
+  
+  for (sim in 1:n_simulations) {
+    trend <- 1:capT 
+    epsilon <- stats::rt(n = capT, df = df) 
+    Y <- intercept + trend_coef * trend + epsilon # Model given in the question
+    regression <- lm(Y ~ trend) 
+    t_stat <- abs(summary(regression)$coefficients[2, 1] - trend_coef) / # Calculating the test statistic
+      summary(regression)$coefficients[2, 2]
+    critical_value <- stats::qnorm(1 - significance_level/2)  
+    
+    if (t_stat >= critical_value) {
+      rejection_count <- rejection_count + 1
+    }
+  }
+  
+  rejection_rate <- round(rejection_count / n_simulations, 5)
+  cat("Rejection rate:", rejection_rate,
+      "| Degrees of freedom", df, "\n")
+}
